@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistical Physics Explorer</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+   <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Custom SVG Icons
+    const PlayIcon = () => React.createElement('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'currentColor' },
+        React.createElement('polygon', { points: '5,3 19,12 5,21' })
+    );
+    
+    const PauseIcon = () => React.createElement('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'currentColor' },
+        React.createElement('rect', { x: 6, y: 4, width: 4, height: 16 }),
+        React.createElement('rect', { x: 14, y: 4, width: 4, height: 16 })
+    );
+    
+    const RotateCcwIcon = () => React.createElement('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+        React.createElement('polyline', { points: '1,4 1,10 7,10' }),
+        React.createElement('path', { d: 'M3.51,15a9,9,0,0,0,2.13,3.09,9,9,0,0,0,13.4,0,9,9,0,0,0,2.13-3.09' })
+    );
+    
+    const ThermometerIcon = () => React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+        React.createElement('path', { d: 'M14,4V14a2,2,0,0,1-4,0V4a2,2,0,0,1,4,0Z' }),
+        React.createElement('path', { d: 'M16,17a4,4,0,1,1-8,0' })
+    );
+    
+    const ZapIcon = () => React.createElement('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'currentColor', className: 'text-blue-600' },
+        React.createElement('polygon', { points: '13,2 3,14 12,14 11,22 21,10 12,10' })
+    );
+    
+    const BarChart3Icon = ({ className }) => React.createElement('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, className },
+        React.createElement('line', { x1: 12, y1: 20, x2: 12, y2: 10 }),
+        React.createElement('line', { x1: 18, y1: 20, x2: 18, y2: 4 }),
+        React.createElement('line', { x1: 6, y1: 20, x2: 6, y2: 16 })
+    );
+    
+    const InfoIcon = () => React.createElement('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, className: 'text-blue-600' },
+        React.createElement('circle', { cx: 12, cy: 12, r: 10 }),
+        React.createElement('line', { x1: 12, y1: 16, x2: 12, y2: 12 }),
+        React.createElement('line', { x1: 12, y1: 8, x2: 12.01, y2: 8 })
+    );
+
+    const StatisticalPhysicsExplorer = () => {
+        const [isRunning, setIsRunning] = useState(false);
+        const [temperature, setTemperature] = useState(300);
+        const [numParticles, setNumParticles] = useState(100);
+        const [selectedConcept, setSelectedConcept] = useState('maxwell-boltzmann');
+        const [particles, setParticles] = useState([]);
+        const [energyBins, setEnergyBins] = useState([]);
+        const animationRef = useRef();
+        const isRunningRef = useRef(isRunning); // Add this ref
+
+        // Update the ref whenever isRunning state changes
+        useEffect(() => {
+            isRunningRef.current = isRunning;
+        }, [isRunning]);
+
+        // Initialize particles
+        useEffect(() => {
+            const newParticles = [];
+            for (let i = 0; i < numParticles; i++) {
+                const speed = Math.random() * Math.sqrt(temperature / 100) * 3;
+                const angle = Math.random() * 2 * Math.PI;
+                newParticles.push({
+                    x: Math.random() * 400,
+                    y: Math.random() * 300,
+                    vx: speed * Math.cos(angle),
+                    vy: speed * Math.sin(angle),
+                    energy: 0.5 * speed * speed,
+                    id: i
+                });
+            }
+            setParticles(newParticles);
+        }, [numParticles, temperature]);
+
+        // Calculate energy distribution
+        useEffect(() => {
+            const bins = new Array(20).fill(0);
+            const maxEnergy = Math.max(...particles.map(p => p.energy), 1);
+            
+            particles.forEach(p => {
+                const binIndex = Math.min(Math.floor((p.energy / maxEnergy) * 19), 19);
+                bins[binIndex]++;
+            });
+            
+            setEnergyBins(bins);
+        }, [particles]);
+
+        // Animation loop
+        useEffect(() => {
+            const animate = () => {
+                setParticles(prevParticles =>
+                    prevParticles.map(p => {
+                        let newX = p.x + p.vx;
+                        let newY = p.y + p.vy;
+                        let newVx = p.vx;
+                        let newVy = p.vy;
+
+                        // Bounce off walls
+                        if (newX <= 0 || newX >= 400) {
+                            newVx = -newVx;
+                            newX = Math.max(0, Math.min(400, newX));
+                        }
+                        if (newY <= 0 || newY >= 300) {
+                            newVy = -newVy;
+                            newY = Math.max(0, Math.min(300, newY));
+                        }
+
+                        const speed = Math.sqrt(newVx * newVx + newVy * newVy);
+                        return {
+                            ...p,
+                            x: newX,
+                            y: newY,
+                            vx: newVx,
+                            vy: newVy,
+                            energy: 0.5 * speed * speed
+                        };
+                    })
+                );
+
+                // Use the ref for the condition
+                if (isRunningRef.current) {
+                    animationRef.current = requestAnimationFrame(animate);
+                }
+            };
+
+            // Start the animation only when isRunning is true
+            if (isRunning) {
+                animationRef.current = requestAnimationFrame(animate);
+            }
+
+            // Cleanup function to cancel the animation frame
+            return () => {
+                if (animationRef.current) {
+                    cancelAnimationFrame(animationRef.current);
+                }
+            };
+        }, [isRunning, numParticles, temperature]); // Re-run effect only on isRunning change, or initial setup changes
+
+        const concepts = {
+            'maxwell-boltzmann': {
+                title: 'Maxwell-Boltzmann Distribution',
+                description: 'Shows how particle energies are distributed in thermal equilibrium. Most particles have moderate energies, with exponentially fewer at high energies.',
+                color: '#3b82f6',
+                bgColor: 'bg-blue-100',
+                borderColor: 'border-blue-500'
+            },
+            'entropy': {
+                title: 'Entropy & Microstates',
+                description: 'Entropy measures the number of ways to arrange particles. Higher temperature = more possible arrangements = higher entropy.',
+                color: '#ef4444',
+                bgColor: 'bg-red-100',
+                borderColor: 'border-red-500'
+            },
+            'phase-transitions': {
+                title: 'Phase Transitions',
+                description: 'At critical temperatures, small changes can cause dramatic shifts in system behavior - like ice melting to water.',
+                color: '#10b981',
+                bgColor: 'bg-green-100',
+                borderColor: 'border-green-500'
+            }
+        };
+
+        const resetSimulation = () => {
+            setIsRunning(false);
+            const newParticles = [];
+            for (let i = 0; i < numParticles; i++) {
+                const speed = Math.random() * Math.sqrt(temperature / 100) * 3;
+                const angle = Math.random() * 2 * Math.PI;
+                newParticles.push({
+                    x: Math.random() * 400,
+                    y: Math.random() * 300,
+                    vx: speed * Math.cos(angle),
+                    vy: speed * Math.sin(angle),
+                    energy: 0.5 * speed * speed,
+                    id: i
+                });
+            }
+            setParticles(newParticles);
+        };
+
+        const maxBinHeight = Math.max(...energyBins, 1);
+
+        return React.createElement('div', { className: "max-w-6xl mx-auto p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg" }, [
+            React.createElement('h1', { 
+                key: 'title',
+                className: "text-3xl font-bold text-gray-800 mb-6 flex items-center gap-2" 
+            }, [
+                React.createElement(ZapIcon, { key: 'icon' }),
+                'Statistical Physics Explorer'
+            ]),
+            
+            // Concept Selector
+            React.createElement('div', { 
+                key: 'concepts',
+                className: "grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" 
+            }, Object.entries(concepts).map(([key, concept]) =>
+                React.createElement('button', {
+                    key: key,
+                    onClick: () => setSelectedConcept(key),
+                    className: `p-4 rounded-lg border-2 transition-all ${
+                        selectedConcept === key
+                            ? `${concept.borderColor} bg-white shadow-lg`
+                            : 'border-gray-200 bg-gray-50 hover:bg-white'
+                    }`
+                }, [
+                    React.createElement('h3', { 
+                        key: 'title',
+                        className: "font-semibold text-gray-800 mb-2" 
+                    }, concept.title),
+                    React.createElement('p', { 
+                        key: 'desc',
+                        className: "text-sm text-gray-600" 
+                    }, concept.description)
+                ])
+            )),
+
+            React.createElement('div', { 
+                key: 'main',
+                className: "grid grid-cols-1 lg:grid-cols-2 gap-6" 
+            }, [
+                // Particle Simulation
+                React.createElement('div', { 
+                    key: 'simulation',
+                    className: "bg-white rounded-lg p-4 shadow-lg" 
+                }, [
+                    React.createElement('div', { 
+                        key: 'header',
+                        className: "flex items-center justify-between mb-4" 
+                    }, [
+                        React.createElement('h2', { 
+                            key: 'title',
+                            className: "text-xl font-semibold flex items-center gap-2" 
+                        }, [
+                            React.createElement(BarChart3Icon, { key: 'icon', className: "text-blue-600" }),
+                            'Particle Simulation'
+                        ]),
+                        React.createElement('div', { 
+                            key: 'controls',
+                            className: "flex gap-2" 
+                        }, [
+                            React.createElement('button', {
+                                key: 'play',
+                                onClick: () => setIsRunning(!isRunning),
+                                className: `p-2 rounded-lg ${
+                                    isRunning ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                                }`
+                            }, React.createElement(isRunning ? PauseIcon : PlayIcon)),
+                            React.createElement('button', {
+                                key: 'reset',
+                                onClick: resetSimulation,
+                                className: "p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }, React.createElement(RotateCcwIcon))
+                        ])
+                    ]),
+                    
+                    React.createElement('div', { 
+                        key: 'canvas',
+                        className: "relative" 
+                    }, 
+                        React.createElement('svg', { 
+                            width: 400, 
+                            height: 300, 
+                            className: "border border-gray-300 rounded bg-gray-50" 
+                        }, particles.map(particle =>
+                            React.createElement('circle', {
+                                key: particle.id,
+                                cx: particle.x,
+                                cy: particle.y,
+                                r: "3",
+                                fill: concepts[selectedConcept].color,
+                                opacity: 0.7
+                            })
+                        ))
+                    ),
+                    
+                    // Controls
+                    React.createElement('div', { 
+                        key: 'controls',
+                        className: "mt-4 space-y-3" 
+                    }, [
+                        React.createElement('div', { key: 'temp' }, [
+                            React.createElement('label', { 
+                                className: "flex items-center gap-2 text-sm font-medium text-gray-700 mb-1" 
+                            }, [
+                                React.createElement(ThermometerIcon, { key: 'icon' }),
+                                `Temperature: ${temperature}K`
+                            ]),
+                            React.createElement('input', {
+                                type: "range",
+                                min: "100",
+                                max: "1000",
+                                value: temperature,
+                                onChange: (e) => setTemperature(Number(e.target.value)),
+                                className: "w-full"
+                            })
+                        ]),
+                        
+                        React.createElement('div', { key: 'particles' }, [
+                            React.createElement('label', { 
+                                className: "text-sm font-medium text-gray-700 mb-1 block" 
+                            }, `Particles: ${numParticles}`),
+                            React.createElement('input', {
+                                type: "range",
+                                min: "50",
+                                max: "200",
+                                value: numParticles,
+                                onChange: function(e) { setNumParticles(Number(e.target.value)); },
+                                className: "w-full"
+                            })
+                        ])
+                    ])
+                ]),
+
+                // Energy Distribution
+                React.createElement('div', { 
+                    key: 'distribution',
+                    className: "bg-white rounded-lg p-4 shadow-lg" 
+                }, [
+                    React.createElement('h2', { 
+                        key: 'title',
+                        className: "text-xl font-semibold mb-4 flex items-center gap-2" 
+                    }, [
+                        React.createElement(BarChart3Icon, { key: 'icon', className: "text-green-600" }),
+                        'Energy Distribution'
+                    ]),
+                    
+                    React.createElement('div', { 
+                        key: 'chart',
+                        className: "h-64 flex items-end justify-center gap-1" 
+                    }, energyBins.map((count, index) =>
+                        React.createElement('div', {
+                            key: index,
+                            className: "bg-gradient-to-t from-blue-600 to-blue-400 min-w-0 flex-1 rounded-t",
+                            style: {
+                                height: `${(count / maxBinHeight) * 200}px`,
+                                minHeight: count > 0 ? '4px' : '0px'
+                            },
+                            title: `Energy bin ${index}: ${count} particles`
+                        })
+                    )),
+                    
+                    React.createElement('div', { 
+                        key: 'label',
+                        className: "mt-4 text-center text-sm text-gray-600" 
+                    }, selectedConcept === 'maxwell-boltzmann' ? 'Low Energy ← → High Energy' :
+                       selectedConcept === 'entropy' ? 'Energy States Distribution' :
+                       'Kinetic Energy vs Temperature'),
+
+                    // Key Statistics
+                    React.createElement('div', { 
+                        key: 'stats',
+                        className: "mt-4 grid grid-cols-2 gap-4" 
+                    }, [
+                        React.createElement('div', { 
+                            key: 'avg',
+                            className: "bg-gray-50 p-3 rounded" 
+                        }, [
+                            React.createElement('div', { 
+                                key: 'label',
+                                className: "text-sm text-gray-600" 
+                            }, 'Avg Energy'),
+                            React.createElement('div', { 
+                                key: 'value',
+                                className: "font-semibold" 
+                            }, particles.length > 0 ? 
+                                (particles.reduce((sum, p) => sum + p.energy, 0) / particles.length).toFixed(2)
+                                : '0')
+                        ]),
+                        React.createElement('div', { 
+                            key: 'max',
+                            className: "bg-gray-50 p-3 rounded" 
+                        }, [
+                            React.createElement('div', { 
+                                key: 'label',
+                                className: "text-sm text-gray-600" 
+                            }, 'Max Energy'),
+                            React.createElement('div', { 
+                                key: 'value',
+                                className: "font-semibold" 
+                            }, particles.length > 0 ? 
+                                Math.max(...particles.map(p => p.energy)).toFixed(2)
+                                : '0')
+                        ])
+                    ])
+                ])
+            ]),
+
+            // Concept Explanation
+            React.createElement('div', { 
+                key: 'explanation',
+                className: "mt-6 bg-white rounded-lg p-6 shadow-lg" 
+            }, [
+                React.createElement('div', { 
+                    key: 'header',
+                    className: "flex items-center gap-2 mb-4" 
+                }, [
+                    React.createElement(InfoIcon, { key: 'icon' }),
+                    React.createElement('h2', { 
+                        key: 'title',
+                        className: "text-xl font-semibold" 
+                    }, `Understanding ${concepts[selectedConcept].title}`)
+                ]),
+                
+                React.createElement('div', { 
+                    key: 'content',
+                    className: "prose text-gray-700" 
+                }, (() => {
+                    if (selectedConcept === 'maxwell-boltzmann') {
+                        return [
+                            React.createElement('p', { key: 1, className: "mb-3" }, 
+                                "The Maxwell-Boltzmann distribution shows us something fundamental: in a gas at thermal equilibrium, most particles have moderate kinetic energies, with very few having extremely high or low energies."
+                            ),
+                            React.createElement('p', { key: 2, className: "mb-3" }, [
+                                React.createElement('strong', { key: 'strong' }, "Key insights: "),
+                                "As temperature increases, the distribution spreads out - more particles gain higher energies. This is why heating a gas makes particles move faster on average, but there's always a range of speeds present."
+                            ]),
+                            React.createElement('p', { key: 3 }, 
+                                "Watch how changing temperature affects both the particle speeds in the simulation and the shape of the energy distribution!"
+                            )
+                        ];
+                    }
+                    
+                    if (selectedConcept === 'entropy') {
+                        return [
+                            React.createElement('p', { key: 1, className: "mb-3" }, 
+                                'Entropy is often called "disorder," but it\'s really about possibilities. It measures how many different ways we can arrange particles while keeping the same total energy.'
+                            ),
+                            React.createElement('p', { key: 2, className: "mb-3" }, [
+                                React.createElement('strong', { key: 'strong' }, "The key principle: "),
+                                "Systems naturally evolve toward states with more possible arrangements (higher entropy). This is why hot and cold objects reach thermal equilibrium - the mixed temperature state has vastly more possible arrangements than separated hot/cold regions."
+                            ]),
+                            React.createElement('p', { key: 3 }, 
+                                "In our simulation, higher temperatures mean particles can occupy more energy states, increasing the system's entropy."
+                            )
+                        ];
+                    }
+                    
+                    if (selectedConcept === 'phase-transitions') {
+                        return [
+                            React.createElement('p', { key: 1, className: "mb-3" }, 
+                                "Phase transitions are dramatic changes in material properties that occur at specific temperatures. Think of ice melting at exactly 0°C - a small temperature change causes a huge structural shift."
+                            ),
+                            React.createElement('p', { key: 2, className: "mb-3" }, [
+                                React.createElement('strong', { key: 'strong' }, "What's happening: "),
+                                "As temperature changes, the balance between kinetic energy (particle motion) and potential energy (particle interactions) shifts. At critical points, the system suddenly reorganizes."
+                            ]),
+                            React.createElement('p', { key: 3 }, 
+                                'While our simple simulation doesn\'t show phase transitions directly, you can imagine that at very low temperatures, particles would "freeze" into ordered patterns, while at high temperatures, they\'d become completely disordered gas-like motion.'
+                            )
+                        ];
+                    }
+                })())
+            ])
+        ]);
+    };
+
+    ReactDOM.render(React.createElement(StatisticalPhysicsExplorer), document.getElementById('root'));
+</script>
+</body>
+</html>
